@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using creditos.Data;
 using creditos.Services;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,7 +35,29 @@ if (!string.IsNullOrWhiteSpace(redisConnectionString))
 {
     builder.Services.AddStackExchangeRedisCache(options =>
     {
-        options.Configuration = redisConnectionString;
+        if (redisConnectionString.StartsWith("redis://", StringComparison.OrdinalIgnoreCase) || 
+            redisConnectionString.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
+        {
+            var uri = new Uri(redisConnectionString);
+            var userInfo = uri.UserInfo.Split(':');
+            var password = userInfo.Length > 1 ? userInfo[1] : userInfo[0];
+            var config = new ConfigurationOptions
+            {
+                EndPoints = { { uri.Host, uri.Port } },
+                Password = password,
+                Ssl = uri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase),
+                AbortOnConnectFail = false
+            };
+            if (userInfo.Length > 1 && !string.IsNullOrEmpty(userInfo[0]))
+            {
+                config.User = userInfo[0];
+            }
+            options.ConfigurationOptions = config;
+        }
+        else
+        {
+            options.Configuration = redisConnectionString;
+        }
         options.InstanceName = "Creditos_";
     });
 }
