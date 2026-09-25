@@ -601,3 +601,67 @@ body {
     border-color: #bae6fd;
     color: #075985;
 }
+
+/* WebSocket Realtime Indicators & Notifications (Pregunta 6) */
+.status-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+
+.ws-toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1090;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: none;
+}
+
+.ws-toast-container .toast {
+    pointer-events: auto;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes rowPulse {
+    0% {
+        background-color: rgba(34, 197, 94, 0.25);
+    }
+    50% {
+        background-color: rgba(34, 197, 94, 0.15);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.row-updated-highlight {
+    animation: rowPulse 3.5s ease-out;
+}
+
+@keyframes cardPulse {
+    0% {
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.4);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+    }
+}
+
+.card-updated-highlight {
+    animation: cardPulse 3.5s ease-out;
+}

@@ -82,6 +82,15 @@
                 </div>
 
                 <div class="d-flex align-items-center gap-3">
+                    <!-- Indicador de conexión WebSocket SignalR (Pregunta 6) -->
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <span id="ws-status-badge" class="badge rounded-pill bg-light text-secondary border px-2 py-1 d-inline-flex align-items-center gap-1" title="Iniciando conexión en tiempo real...">
+                            <span class="status-dot bg-secondary"></span>
+                            <span>Conectando...</span>
+                        </span>
+                    }
+
                     <!-- Enlace de última solicitud visitada (Redis Sesión) -->
                     @if (Context.Session.GetString("UltimaSolicitudMonto") != null)
                     {
@@ -139,6 +148,9 @@
             <div class="dashboard-body flex-grow-1">
                 @RenderBody()
             </div>
+
+            <!-- Contenedor de Alertas Flotantes WebSocket en Tiempo Real (Pregunta 6) -->
+            <div id="ws-toast-container" class="ws-toast-container"></div>
         </main>
     </div>
 
@@ -146,6 +158,11 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <script src="~/lib/microsoft-signalr/signalr.min.js"></script>
+        <script src="~/js/solicitudes-realtime.js" asp-append-version="true"></script>
+    }
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

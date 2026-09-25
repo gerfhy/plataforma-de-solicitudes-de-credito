@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using creditos.Data;
+using creditos.Hubs;
 using creditos.Models;
 using creditos.Services;
 
@@ -12,15 +14,21 @@ public class AnalistaController : Controller
 {
     private readonly ApplicationDbContext _context;
     private readonly ISolicitudCacheService _cacheService;
+    private readonly IHubContext<SolicitudesHub> _hubContext;
+    private readonly IPieSocketService _pieSocketService;
     private readonly ILogger<AnalistaController> _logger;
 
     public AnalistaController(
         ApplicationDbContext context, 
         ISolicitudCacheService cacheService,
+        IHubContext<SolicitudesHub> hubContext,
+        IPieSocketService pieSocketService,
         ILogger<AnalistaController> logger)
     {
         _context = context;
         _cacheService = cacheService;
+        _hubContext = hubContext;
+        _pieSocketService = pieSocketService;
         _logger = logger;
     }
 
@@ -83,15 +91,36 @@ public class AnalistaController : Controller
             return RedirectToAction(nameof(Index));
         }
 
-        // Actualizar estado a Aprobado
+        // 1. Guardar primero el estado en la base de datos
         solicitud.Estado = EstadoSolicitud.Aprobado;
         solicitud.MotivoRechazo = null;
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Solicitud #{SolicitudId} APROBADA exitosamente por Analista", solicitud.Id);
 
-        // Invalidar Caché Redis del cliente afectado (Pregunta 4)
+        // 2. Invalidar Caché Redis del cliente afectado (Pregunta 4)
         await _cacheService.InvalidarCacheClienteAsync(solicitud.ClienteId);
+
+        // 3. Emitir evento WebSocket SolicitudEstadoActualizado únicamente al usuario propietario (Pregunta 6)
+        if (!string.IsNullOrEmpty(solicitud.Cliente?.UsuarioId))
+        {
+            // Emisión nativa por Hub
+            await _hubContext.Clients.User(solicitud.Cliente.UsuarioId).SendAsync("SolicitudEstadoActualizado", new
+            {
+                solicitudId = solicitud.Id,
+                estado = "Aprobado",
+                motivoRechazo = (string?)null
+            });
+
+            // Emisión por PieSocket (piehost.com)
+            await _pieSocketService.PublicarEstadoActualizadoAsync(
+                solicitud.Cliente.UsuarioId,
+                solicitud.Id,
+                "Aprobado",
+                null);
+
+            _logger.LogInformation("WebSocket SolicitudEstadoActualizado (Aprobado) emitido a usuario {UsuarioId} para solicitud #{SolicitudId}", solicitud.Cliente.UsuarioId, solicitud.Id);
+        }
 
         TempData["SuccessMessage"] = $"¡Solicitud #{solicitud.Id} aprobada con éxito por un monto de ${solicitud.MontoSolicitado:N2}!";
         return RedirectToAction(nameof(Index));
@@ -126,15 +155,36 @@ public class AnalistaController : Controller
             return RedirectToAction(nameof(Index));
         }
 
-        // Actualizar estado a Rechazado con motivo
+        // 1. Guardar primero el estado en la base de datos
         solicitud.Estado = EstadoSolicitud.Rechazado;
         solicitud.MotivoRechazo = motivoRechazo.Trim();
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Solicitud #{SolicitudId} RECHAZADA por Analista. Motivo: {Motivo}", solicitud.Id, solicitud.MotivoRechazo);
 
-        // Invalidar Caché Redis del cliente afectado (Pregunta 4)
+        // 2. Invalidar Caché Redis del cliente afectado (Pregunta 4)
         await _cacheService.InvalidarCacheClienteAsync(solicitud.ClienteId);
+
+        // 3. Emitir evento WebSocket SolicitudEstadoActualizado únicamente al usuario propietario (Pregunta 6)
+        if (!string.IsNullOrEmpty(solicitud.Cliente?.UsuarioId))
+        {
+            // Emisión nativa por Hub
+            await _hubContext.Clients.User(solicitud.Cliente.UsuarioId).SendAsync("SolicitudEstadoActualizado", new
+            {
+                solicitudId = solicitud.Id,
+                estado = "Rechazado",
+                motivoRechazo = solicitud.MotivoRechazo
+            });
+
+            // Emisión por PieSocket (piehost.com)
+            await _pieSocketService.PublicarEstadoActualizadoAsync(
+                solicitud.Cliente.UsuarioId,
+                solicitud.Id,
+                "Rechazado",
+                solicitud.MotivoRechazo);
+
+            _logger.LogInformation("WebSocket SolicitudEstadoActualizado (Rechazado) emitido a usuario {UsuarioId} para solicitud #{SolicitudId}", solicitud.Cliente.UsuarioId, solicitud.Id);
+        }
 
         TempData["SuccessMessage"] = $"Solicitud #{solicitud.Id} rechazada correctamente.";
         return RedirectToAction(nameof(Index));
