@@ -33,6 +33,11 @@ La base de datos se inicializa automáticamente al arrancar mediante `DbInitiali
 | **Cliente 1** | `cliente1@creditos.com` | `Password123!` | $3,500.00 | Activo (Solicitudes aprobadas y catálogo) |
 | **Cliente 2** | `cliente2@creditos.com` | `Password123!` | $2,000.00 | Activo (Pruebas de aislamiento en tiempo real) |
 
+> 💡 **Flujo de prueba recomendado para el evaluador en Render:**
+> 1. **Paso 1 (Cliente):** Inicia sesión con `cliente1@creditos.com` (`Password123!`), entra a **Nueva Solicitud** y registra un crédito (ej. $12,000). Verás la confirmación inmediata en pantalla y en **Notificaciones** aparecerá el evento asíncrono procesado por **Cloud MQ (RabbitMQ en CloudAMQP)**.
+> 2. **Paso 2 (Analista):** En una ventana de incógnito o segundo navegador, inicia sesión con `analista@creditos.com` (`Password123!`) y accede al **Panel Analista** (`/Analista`).
+> 3. **Paso 3 (Tiempo Real):** Haz clic en **Aprobar** o **Rechazar** (ingresando un motivo obligatorio). Al instante, sin recargar la página, la ventana del Cliente recibirá el aviso y cambio de estado vía **WebSockets (PieSocket)**, y su notificación permanente quedará guardada en el historial.
+
 ---
 
 ## 📋 Reglas de Negocio Implementadas en Servidor
