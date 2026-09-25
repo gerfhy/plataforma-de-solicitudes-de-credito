@@ -9,9 +9,23 @@ public class PieSocketService : IPieSocketService
     private readonly HttpClient _httpClient;
     private readonly ILogger<PieSocketService> _logger;
 
-    public string? ClusterId => _configuration["PieSocket:ClusterId"] ?? Environment.GetEnvironmentVariable("PIESOCKET_CLUSTER_ID") ?? "free.blr2";
-    public string? ApiKey => _configuration["PieSocket:ApiKey"] ?? Environment.GetEnvironmentVariable("PIESOCKET_API_KEY");
-    public string? ApiSecret => _configuration["PieSocket:ApiSecret"] ?? Environment.GetEnvironmentVariable("PIESOCKET_API_SECRET");
+    public string? ClusterId => _configuration["PieSocket:ClusterId"] 
+        ?? _configuration["PieSocket__ClusterId"] 
+        ?? Environment.GetEnvironmentVariable("PieSocket__ClusterId") 
+        ?? Environment.GetEnvironmentVariable("PIESOCKET_CLUSTER_ID") 
+        ?? "free.blr2";
+
+    public string? ApiKey => _configuration["PieSocket:ApiKey"] 
+        ?? _configuration["PieSocket__ApiKey"] 
+        ?? Environment.GetEnvironmentVariable("PieSocket__ApiKey") 
+        ?? Environment.GetEnvironmentVariable("PIESOCKET_API_KEY");
+
+    public string? ApiSecret => _configuration["PieSocket:ApiSecret"] 
+        ?? _configuration["PieSocket__Secret"] 
+        ?? _configuration["PieSocket__ApiSecret"] 
+        ?? Environment.GetEnvironmentVariable("PieSocket__Secret") 
+        ?? Environment.GetEnvironmentVariable("PieSocket__ApiSecret") 
+        ?? Environment.GetEnvironmentVariable("PIESOCKET_API_SECRET");
 
     public PieSocketService(IConfiguration configuration, HttpClient httpClient, ILogger<PieSocketService> logger)
     {
