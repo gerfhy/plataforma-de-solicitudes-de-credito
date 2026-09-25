@@ -1,0 +1,33 @@
+## Build and Output
+bin/
+obj/
+out/
+
+## Database
+*.db
+*.db-shm
+*.db-wal
+
+## User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## Visual Studio / VS Code
+.vs/
+.vscode/
+*.swp
+*.*~
+
+## Environment / Secrets
+appsettings.Production.json
+*.local.json
+
+## OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
