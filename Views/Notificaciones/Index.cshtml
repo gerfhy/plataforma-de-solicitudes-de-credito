@@ -1,0 +1,127 @@
+@model IEnumerable<creditos.Models.Notificacion>
+@{
+    ViewData["Title"] = "Centro de Notificaciones";
+    var isAnalista = (bool)(ViewBag.IsAnalista ?? false);
+}
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="dashboard-card">
+            <div class="card-header-sleek">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="card-action-btn"><i class="bi bi-bell-fill text-warning"></i></span>
+                    <div>
+                        <h2 class="card-title-sleek">Centro de Notificaciones Asíncronas</h2>
+                        <p class="text-muted small mb-0">Eventos procesados en segundo plano mediante Cloud MQ (CloudAMQP / RabbitMQ)</p>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-3 py-2">
+                        <i class="bi bi-broadcast me-1"></i> Cloud MQ Activo
+                    </span>
+                    @if (isAnalista)
+                    {
+                        <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle px-3 py-2">
+                            <i class="bi bi-shield-check me-1"></i> Modo Auditoría Analista
+                        </span>
+                    }
+                </div>
+            </div>
+
+            <!-- Resumen Informativo Cloud MQ -->
+            <div class="alert alert-light border mt-3 mb-4 rounded-3 d-flex align-items-start gap-3">
+                <div class="p-2 bg-primary bg-opacity-10 rounded-2 text-primary">
+                    <i class="bi bi-cpu fs-4"></i>
+                </div>
+                <div>
+                    <h6 class="fw-semibold mb-1">Arquitectura de Mensajería Asíncrona</h6>
+                    <p class="text-muted small mb-0">
+                        Cada vez que se registra una solicitud de crédito, el sistema publica un mensaje persistente en una cola durable de <strong>CloudAMQP</strong> utilizando <em>Publisher Confirms</em>.
+                        Un consumidor en segundo plano procesa el evento, valida la deduplicación mediante el <code>MessageId</code> único y emite la confirmación manual <code>ACK</code> tras guardar el registro en la base de datos.
+                    </p>
+                </div>
+            </div>
+
+            @if (!Model.Any())
+            {
+                <div class="text-center py-5">
+                    <div class="display-6 text-muted mb-3"><i class="bi bi-inbox"></i></div>
+                    <h5 class="fw-bold text-dark">No tienes notificaciones registradas</h5>
+                    <p class="text-muted small">Cuando registres una solicitud de crédito, el consumidor asíncrono procesará tu confirmación aquí.</p>
+                    <a asp-controller="Solicitudes" asp-action="Create" class="btn btn-primary rounded-pill px-4 mt-2">
+                        <i class="bi bi-plus-lg me-1"></i> Nueva Solicitud
+                    </a>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive mt-2">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 80px;">ID</th>
+                                <th>Mensaje / Notificación</th>
+                                <th>Solicitud Asociada</th>
+                                @if (isAnalista)
+                                {
+                                    <th>Usuario</th>
+                                }
+                                <th>Message ID (UUID)</th>
+                                <th>Fecha Procesamiento (UTC)</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var notif in Model)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-secondary-subtle text-secondary fw-bold">#@notif.Id</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                            <span class="fw-semibold text-dark">@notif.Texto</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <a asp-controller="Solicitudes" asp-action="Details" asp-route-id="@notif.SolicitudId" class="badge bg-primary-subtle text-primary border text-decoration-none px-2 py-1">
+                                            <i class="bi bi-file-earmark-text me-1"></i> Solicitud #@notif.SolicitudId
+                                        </a>
+                                        @if (notif.Solicitud != null)
+                                        {
+                                            <small class="text-muted d-block mt-1">
+                                                $@notif.Solicitud.MontoSolicitado.ToString("N2") • @notif.Solicitud.Estado
+                                            </small>
+                                        }
+                                    </td>
+                                    @if (isAnalista)
+                                    {
+                                        <td>
+                                            <small class="fw-semibold text-dark">@(notif.Usuario?.UserName ?? notif.UsuarioId)</small>
+                                        </td>
+                                    }
+                                    <td>
+                                        <code class="user-select-all small text-primary" title="@notif.MessageId">
+                                            @(notif.MessageId.Length > 18 ? notif.MessageId.Substring(0, 18) + "..." : notif.MessageId)
+                                        </code>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            <i class="bi bi-clock me-1"></i> @notif.FechaProcesamientoUtc.ToString("yyyy-MM-dd HH:mm:ss") UTC
+                                        </small>
+                                    </td>
+                                    <td class="text-end">
+                                        <a asp-controller="Solicitudes" asp-action="Details" asp-route-id="@notif.SolicitudId" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                            Ver Solicitud
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

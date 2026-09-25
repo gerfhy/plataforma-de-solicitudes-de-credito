@@ -8,6 +8,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 {
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<SolicitudCredito> SolicitudesCredito => Set<SolicitudCredito>();
+    public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -44,6 +45,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(s => s.ClienteId)
                 .HasFilter("[Estado] = 0")
                 .IsUnique();
+        });
+
+        // Notificacion configuration (Deduplicación por MessageId e integridad)
+        builder.Entity<Notificacion>(entity =>
+        {
+            entity.HasKey(n => n.Id);
+            entity.HasIndex(n => n.MessageId)
+                .IsUnique();
+
+            entity.HasOne(n => n.Solicitud)
+                .WithMany()
+                .HasForeignKey(n => n.SolicitudId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.Usuario)
+                .WithMany()
+                .HasForeignKey(n => n.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
