@@ -69,11 +69,23 @@
     <div class="col-12">
         <div class="dashboard-card">
             <div class="card-header-sleek">
-                <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
                     <h2 class="card-title-sleek">Listado de Solicitudes Registradas</h2>
                     <span class="badge bg-light text-dark border px-2 py-1 rounded-pill" style="font-size: 0.8rem;">
                         @Model.Solicitudes.Count resultado(s)
                     </span>
+                    @if (ViewData["CachéHit"] is true)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> Servido desde Caché Redis (TTL 60s)
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-light text-secondary border px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                            <i class="bi bi-database me-1"></i> Origen: Base de Datos SQLite
+                        </span>
+                    }
                 </div>
                 <div class="d-flex gap-2">
                     <span class="card-action-btn"><i class="bi bi-three-dots-vertical"></i></span>

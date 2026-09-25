@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using creditos.Data;
+using creditos.Services;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Configuración de Base de Datos SQLite
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
@@ -25,14 +27,55 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<ApplicationDbContext>();
 
-// Soporte de Caché y Sesión en memoria (se adaptará a Redis en Pregunta 4)
-builder.Services.AddDistributedMemoryCache();
+// Configuración de Caché y Sesión con Redis (Requerimiento Pregunta 4)
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"] 
+    ?? builder.Configuration.GetConnectionString("Redis");
+
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        if (redisConnectionString.StartsWith("redis://", StringComparison.OrdinalIgnoreCase) || 
+            redisConnectionString.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
+        {
+            var uri = new Uri(redisConnectionString);
+            var userInfo = uri.UserInfo.Split(':');
+            var password = userInfo.Length > 1 ? userInfo[1] : userInfo[0];
+            var config = new ConfigurationOptions
+            {
+                EndPoints = { { uri.Host, uri.Port } },
+                Password = password,
+                Ssl = uri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase),
+                AbortOnConnectFail = false
+            };
+            if (userInfo.Length > 1 && !string.IsNullOrEmpty(userInfo[0]))
+            {
+                config.User = userInfo[0];
+            }
+            options.ConfigurationOptions = config;
+        }
+        else
+        {
+            options.Configuration = redisConnectionString;
+        }
+        options.InstanceName = "Creditos_";
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
+
+// Sesión respaldada por la caché distribuida (Redis en producción o Render)
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
 });
+
+// Registro de servicios de dominio
+builder.Services.AddScoped<ISolicitudCacheService, SolicitudCacheService>();
 
 builder.Services.AddControllersWithViews();
 
