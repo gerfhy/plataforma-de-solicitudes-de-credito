@@ -2,6 +2,7 @@
 bin/
 obj/
 out/
+.playwright-mcp/
 
 ## Database
 *.db
@@ -21,9 +22,10 @@ out/
 *.swp
 *.*~
 
-## Environment / Secrets
+## Environment / Secrets / Docs
 appsettings.Production.json
 *.local.json
+tareas.md
 
 ## OS
 Thumbs.db
