@@ -15,17 +15,20 @@ public class SolicitudesController : Controller
     private readonly UserManager<IdentityUser> _userManager;
     private readonly ISolicitudCacheService _cacheService;
     private readonly IPieSocketService _pieSocketService;
+    private readonly IRabbitMqPublisherService _rabbitMqPublisher;
 
     public SolicitudesController(
         ApplicationDbContext context, 
         UserManager<IdentityUser> userManager,
         ISolicitudCacheService cacheService,
-        IPieSocketService pieSocketService)
+        IPieSocketService pieSocketService,
+        IRabbitMqPublisherService rabbitMqPublisher)
     {
         _context = context;
         _userManager = userManager;
         _cacheService = cacheService;
         _pieSocketService = pieSocketService;
+        _rabbitMqPublisher = rabbitMqPublisher;
     }
 
     // GET: Solicitudes (Mis Solicitudes con filtros y Caché Redis de 60s)
@@ -239,6 +242,21 @@ public class SolicitudesController : Controller
 
         // 2. INVALIDACIÓN DE CACHÉ REDIS (Requerido: invalidar cuando se registre una nueva solicitud)
         await _cacheService.InvalidarCacheUsuarioAsync(user.Id);
+
+        // 3. PUBLICACIÓN ASÍNCRONA EN CLOUD MQ (RabbitMQ / CloudAMQP)
+        var messageId = Guid.NewGuid().ToString();
+        var publicado = await _rabbitMqPublisher.PublicarSolicitudRegistradaAsync(new SolicitudRegistradaMensaje
+        {
+            MessageId = messageId,
+            SolicitudId = nuevaSolicitud.Id,
+            UsuarioId = user.Id,
+            FechaEventoUtc = DateTime.UtcNow
+        });
+
+        if (!publicado)
+        {
+            TempData["WarningMessage"] = $"Tu solicitud #{nuevaSolicitud.Id} fue guardada, pero el mensaje asíncrono no pudo confirmarse en Cloud MQ temporalmente.";
+        }
 
         model.RegistroExitoso = true;
         model.SolicitudCreadaId = nuevaSolicitud.Id;

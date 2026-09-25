@@ -79,6 +79,10 @@ builder.Services.AddSession(options =>
 builder.Services.AddScoped<ISolicitudCacheService, SolicitudCacheService>();
 builder.Services.AddHttpClient<IPieSocketService, PieSocketService>();
 
+// Cloud MQ con RabbitMQ gestionado en CloudAMQP (Requerimiento Pregunta 7)
+builder.Services.AddSingleton<IRabbitMqPublisherService, RabbitMqPublisherService>();
+builder.Services.AddHostedService<RabbitMqConsumerService>();
+
 // WebSocket Hub con SignalR / PieSocket (Requerimiento Pregunta 6)
 builder.Services.AddSignalR();
 
