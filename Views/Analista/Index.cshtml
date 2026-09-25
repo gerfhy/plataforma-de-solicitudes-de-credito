@@ -1,0 +1,210 @@
+@model creditos.Models.PanelAnalistaViewModel
+@{
+    ViewData["Title"] = "Panel de Analista de Riesgo";
+}
+
+<div class="row g-4">
+    <!-- Tarjeta de Políticas y Métricas del Analista -->
+    <div class="col-12">
+        <div class="dashboard-card mb-2" style="background: linear-gradient(135deg, #121316 0%, #1e2229 100%); color: #ffffff;">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--brand-neon-green);">
+                        <i class="bi bi-shield-check"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <h2 class="fs-4 fw-extrabold text-white mb-0">Módulo de Evaluación de Riesgo Crediticio</h2>
+                            <span class="badge bg-light text-dark fw-bold rounded-pill px-2 py-1" style="font-size: 0.75rem;">Rol: Analista</span>
+                        </div>
+                        <p class="text-secondary small mb-0 mt-1" style="color: #94a3b8 !important;">
+                            Política de aprobación obligatoria: El monto solicitado no debe superar 5 veces los ingresos mensuales del cliente.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-3">
+                    <div class="text-end">
+                        <div class="fs-4 fw-bold" style="color: var(--brand-neon-green);">@Model.SolicitudesViables</div>
+                        <div class="small text-secondary" style="color: #94a3b8 !important;">Viables para Aprobación</div>
+                    </div>
+                    <div class="vr bg-secondary opacity-50 my-1"></div>
+                    <div class="text-end">
+                        <div class="fs-4 fw-bold text-danger">@Model.SolicitudesExcedidas</div>
+                        <div class="small text-secondary" style="color: #94a3b8 !important;">Superan Capacidad (>5x)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Listado de Solicitudes Pendientes -->
+    <div class="col-12">
+        <div class="dashboard-card">
+            <div class="card-header-sleek">
+                <div class="d-flex align-items-center gap-3">
+                    <h2 class="card-title-sleek">Solicitudes Pendientes de Dictamen</h2>
+                    <span class="badge bg-light text-dark border px-2 py-1 rounded-pill" style="font-size: 0.8rem;">
+                        @Model.TotalPendientes solicitud(es) por resolver
+                    </span>
+                </div>
+                <div class="d-flex gap-2">
+                    <span class="card-action-btn"><i class="bi bi-arrow-clockwise"></i></span>
+                </div>
+            </div>
+
+            @if (Model.SolicitudesPendientes.Any())
+            {
+                <div class="table-responsive mt-3">
+                    <table class="table-sleek">
+                        <thead>
+                            <tr>
+                                <th># ID</th>
+                                <th>Cliente</th>
+                                <th>Ingresos Mensuales</th>
+                                <th>Monto Solicitado</th>
+                                <th>Ratio / Capacidad</th>
+                                <th>Fecha Solicitud</th>
+                                <th class="text-end">Dictamen / Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in Model.SolicitudesPendientes)
+                            {
+                                var ingresos = s.Cliente?.IngresosMensuales ?? 0m;
+                                var limite5x = ingresos * 5;
+                                var ratio = ingresos > 0 ? (s.MontoSolicitado / ingresos) : 0m;
+                                var esAprobable = s.MontoSolicitado <= limite5x;
+
+                                <tr>
+                                    <td class="fw-bold text-dark">
+                                        #@s.Id
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            @(s.Cliente?.Usuario?.UserName ?? $"Cliente #{s.ClienteId}")
+                                        </div>
+                                        <div class="small text-muted">ID Cliente: #@s.ClienteId</div>
+                                    </td>
+                                    <td class="fw-bold text-dark">
+                                        $@ingresos.ToString("N2")
+                                    </td>
+                                    <td class="fw-extrabold text-dark fs-6">
+                                        $@s.MontoSolicitado.ToString("N2")
+                                    </td>
+                                    <td>
+                                        @if (esAprobable)
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" style="font-size: 0.8rem;">
+                                                <i class="bi bi-check-circle-fill me-1"></i> @ratio.ToString("N1")x (Aprobable)
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 rounded-pill" style="font-size: 0.8rem;" title="Supera el límite de 5x ingresos ($@limite5x.ToString("N2"))">
+                                                <i class="bi bi-exclamation-octagon-fill me-1"></i> @ratio.ToString("N1")x (Excede 5x)
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="text-secondary small">
+                                        <i class="bi bi-clock me-1"></i>@s.FechaSolicitud.ToString("dd/MM/yyyy HH:mm")
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="d-inline-flex gap-2 align-items-center">
+                                            <!-- Botón Aprobar -->
+                                            @if (esAprobable)
+                                            {
+                                                <form asp-action="Aprobar" asp-route-id="@s.Id" method="post" class="d-inline m-0">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn-sleek-success py-1 px-3" style="font-size: 0.82rem;" onclick="return confirm('¿Confirmas la APROBACIÓN de la solicitud #@s.Id por $@s.MontoSolicitado.ToString("N2")?');">
+                                                        <i class="bi bi-check-lg me-1"></i> Aprobar
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn-sleek-outline py-1 px-3 text-muted border-secondary opacity-50" style="font-size: 0.82rem;" title="Bloqueado: El monto supera 5 veces los ingresos mensuales ($@limite5x.ToString("N2"))" disabled>
+                                                    <i class="bi bi-slash-circle me-1"></i> Excede 5x
+                                                </button>
+                                            }
+
+                                            <!-- Botón Rechazar (Modal con motivo obligatorio) -->
+                                            <button type="button" class="btn-sleek-danger py-1 px-3" style="font-size: 0.82rem;" data-bs-toggle="modal" data-bs-target="#modalRechazar-@s.Id">
+                                                <i class="bi bi-x-lg me-1"></i> Rechazar
+                                            </button>
+
+                                            <!-- Enlace a Detalle -->
+                                            <a asp-controller="Solicitudes" asp-action="Details" asp-route-id="@s.Id" class="btn-sleek-outline py-1 px-2" style="font-size: 0.82rem;" title="Ver detalle completo">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Modales de Rechazo (ubicados fuera de la tabla para garantizar la validez HTML y el envío de formulario) -->
+                @foreach (var s in Model.SolicitudesPendientes)
+                {
+                    var ingresos = s.Cliente?.IngresosMensuales ?? 0m;
+                    var limite5x = ingresos * 5;
+
+                    <div class="modal fade text-start" id="modalRechazar-@s.Id" tabindex="-1" aria-labelledby="modalLabel-@s.Id" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content rounded-4 border-0 shadow">
+                                <div class="modal-header border-0 pb-0">
+                                    <h5 class="modal-title fw-bold text-danger d-flex align-items-center gap-2" id="modalLabel-@s.Id">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> Rechazar Solicitud #@s.Id
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                                </div>
+                                <form asp-action="Rechazar" asp-route-id="@s.Id" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <div class="modal-body py-3">
+                                        <div class="p-3 bg-light rounded-3 mb-3 small">
+                                            <div><strong>Cliente:</strong> @(s.Cliente?.Usuario?.UserName ?? $"ID #{s.ClienteId}")</div>
+                                            <div><strong>Monto Solicitado:</strong> $@s.MontoSolicitado.ToString("N2")</div>
+                                            <div><strong>Ingresos Mensuales:</strong> $@ingresos.ToString("N2")</div>
+                                            <div><strong>Capacidad Máx. Aprobación:</strong> $@limite5x.ToString("N2")</div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="motivoRechazo-@s.Id" class="form-label-sleek">
+                                                Motivo de Rechazo <span class="text-danger">* (Obligatorio)</span>
+                                            </label>
+                                            <textarea id="motivoRechazo-@s.Id" 
+                                                      name="motivoRechazo" 
+                                                      class="form-control-sleek" 
+                                                      rows="3" 
+                                                      placeholder="Ingresa la justificación del rechazo (ej. El monto solicitado excede la capacidad de pago del cliente)..." 
+                                                      required></textarea>
+                                            <div class="form-text small text-muted">Este motivo quedará registrado en la base de datos y será visible para el solicitante.</div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer border-0 pt-0">
+                                        <button type="button" class="btn-sleek-outline" data-bs-dismiss="modal">Cancelar</button>
+                                        <button type="submit" class="btn-sleek-danger">
+                                            <i class="bi bi-x-circle me-1"></i> Confirmar Rechazo
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <div style="width: 60px; height: 60px; border-radius: 50%; background: #ecfdf5; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--brand-green);">
+                        <i class="bi bi-check2-all fs-2"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark">Bandeja de Entrada al Día</h5>
+                    <p class="text-secondary small mb-0">No hay solicitudes pendientes de evaluación en este momento.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
