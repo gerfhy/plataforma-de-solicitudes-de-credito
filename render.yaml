@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: plataforma-de-solicitudes-de-credito
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        value: Data Source=app.db
+      - key: Redis__ConnectionString
+        sync: false
+      - key: RabbitMq__ConnectionString
+        sync: false
+      - key: RabbitMq__QueueName
+        value: solicitudes.notificaciones
+      - key: RabbitMq__ConsumerEnabled
+        value: "true"
+      - key: PieSocket__ClusterId
+        value: free.blr2
+      - key: PieSocket__ApiKey
+        sync: false
+      - key: PieSocket__Secret
+        sync: false

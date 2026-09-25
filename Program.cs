@@ -7,9 +7,27 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configuración de Base de Datos SQLite
+// Configuración dinámica del puerto asignado por Render ($PORT)
+var renderPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(renderPort))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
+}
+
+// Configuración de Base de Datos SQLite (soporte para disco persistente en Render /var/data/app.db)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    ?? builder.Configuration["ConnectionStrings__DefaultConnection"]
+    ?? "Data Source=app.db";
+
+if (connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase))
+{
+    var rawDataSource = connectionString.Split("Data Source=")[1].Split(';')[0].Trim();
+    var dbDirectory = Path.GetDirectoryName(rawDataSource);
+    if (!string.IsNullOrEmpty(dbDirectory) && !Directory.Exists(dbDirectory))
+    {
+        Directory.CreateDirectory(dbDirectory);
+    }
+}
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(connectionString));
@@ -28,9 +46,12 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<ApplicationDbContext>();
 
-// Configuración de Caché y Sesión con Redis (Requerimiento Pregunta 4)
+// Configuración de Caché y Sesión con Redis (Requerimiento Pregunta 4 y Render)
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"] 
-    ?? builder.Configuration.GetConnectionString("Redis");
+    ?? builder.Configuration["Redis__ConnectionString"]
+    ?? builder.Configuration.GetConnectionString("Redis")
+    ?? Environment.GetEnvironmentVariable("Redis__ConnectionString")
+    ?? Environment.GetEnvironmentVariable("REDIS_URL");
 
 if (!string.IsNullOrWhiteSpace(redisConnectionString))
 {
