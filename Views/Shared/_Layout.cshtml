@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Plataforma de Créditos</title>
+
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 & Icons -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <!-- Custom Theme CSS matching reference design -->
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="app-viewport">
+        <!-- Barra de Navegación Lateral (Icon Rail) -->
+        <aside class="app-nav-rail">
+            <div class="d-flex flex-column align-items-center w-100">
+                <a asp-controller="Home" asp-action="Index" class="brand-icon-logo" title="Plataforma de Créditos">
+                    <i class="bi bi-water"></i>
+                </a>
+
+                <nav class="nav-rail-menu">
+                    <a asp-controller="Home" asp-action="Index" 
+                       class="nav-rail-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" ? "active" : "")" 
+                       title="Panel Principal">
+                        <i class="bi bi-grid-fill"></i>
+                    </a>
+                    
+                    <a asp-controller="Solicitudes" asp-action="Index" 
+                       class="nav-rail-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "Solicitudes" && ViewContext.RouteData.Values["action"]?.ToString() != "Create" ? "active" : "")" 
+                       title="Mis Solicitudes">
+                        <i class="bi bi-card-checklist"></i>
+                    </a>
+
+                    <a asp-controller="Solicitudes" asp-action="Create" 
+                       class="nav-rail-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "Solicitudes" && ViewContext.RouteData.Values["action"]?.ToString() == "Create" ? "active" : "")" 
+                       title="Nueva Solicitud">
+                        <i class="bi bi-send-fill"></i>
+                    </a>
+
+                    @if (User.IsInRole("Analista"))
+                    {
+                        <a asp-controller="Analista" asp-action="Index" 
+                           class="nav-rail-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "Analista" ? "active" : "")" 
+                           title="Panel Analista">
+                            <i class="bi bi-shield-lock-fill"></i>
+                        </a>
+                    }
+
+                    <a asp-controller="Notificaciones" asp-action="Index" 
+                       class="nav-rail-item @(ViewContext.RouteData.Values["controller"]?.ToString() == "Notificaciones" ? "active" : "")" 
+                       title="Notificaciones">
+                        <i class="bi bi-bell-fill"></i>
+                    </a>
+                </nav>
+            </div>
+
+            <div class="nav-rail-bottom">
+                <partial name="_LoginPartial" />
+            </div>
+        </aside>
+
+        <!-- Contenedor Principal -->
+        <main class="app-content-wrapper">
+            <!-- Barra Superior / Header de la Vista -->
+            <header class="dashboard-header">
+                <div class="dashboard-title-area">
+                    <h1>@(ViewData["Title"] ?? "Panel Principal")</h1>
+                    <div class="dashboard-subtitle">
+                        <i class="bi bi-calendar4-week"></i>
+                        <span>@DateTime.UtcNow.ToString("dd MMM yyyy")</span>
+                        <span class="mx-1">•</span>
+                        <span class="badge bg-light text-dark border">ASP.NET Core .NET 10</span>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Enlace de última solicitud visitada (Redis Sesión) -->
+                    @if (Context.Session.GetString("UltimaSolicitudMonto") != null)
+                    {
+                        var ultimaId = Context.Session.GetString("UltimaSolicitudId");
+                        var ultimoMonto = Context.Session.GetString("UltimaSolicitudMonto");
+                        <a asp-controller="Solicitudes" asp-action="Details" asp-route-id="@ultimaId" class="last-visited-pill">
+                            <i class="bi bi-clock-history text-primary"></i>
+                            <span>Ver última solicitud: <strong>$@ultimoMonto</strong></span>
+                        </a>
+                    }
+
+                    <div class="dashboard-kpis d-none d-md-flex">
+                        <div class="kpi-block">
+                            <div class="kpi-value-row">
+                                <span class="kpi-number">@ViewData["KpiTotalCredito"]</span>
+                                @if (ViewData["KpiTotalBadge"] != null)
+                                {
+                                    <span class="kpi-pill kpi-pill-dark">@ViewData["KpiTotalBadge"]</span>
+                                }
+                            </div>
+                            <div class="kpi-label">@(ViewData["KpiLabel1"] ?? "Créditos Activos")</div>
+                        </div>
+
+                        <div class="kpi-block">
+                            <div class="kpi-value-row">
+                                <span class="kpi-number">@(ViewData["KpiPendientes"] ?? "1")</span>
+                                @if (ViewData["KpiPendientesBadge"] != null)
+                                {
+                                    <span class="kpi-pill kpi-pill-light">@ViewData["KpiPendientesBadge"]</span>
+                                }
+                            </div>
+                            <div class="kpi-label">@(ViewData["KpiLabel2"] ?? "Pendientes")</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Alertas Globales -->
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert-sleek alert-sleek-success" role="alert">
+                    <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                    <div>@TempData["SuccessMessage"]</div>
+                </div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert-sleek alert-sleek-danger" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+                    <div>@TempData["ErrorMessage"]</div>
+                </div>
+            }
+
+            <!-- Contenido Dinámico del Cuerpo -->
+            <div class="dashboard-body flex-grow-1">
+                @RenderBody()
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
