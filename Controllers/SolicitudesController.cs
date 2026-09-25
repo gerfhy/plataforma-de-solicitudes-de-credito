@@ -28,22 +28,9 @@ public class SolicitudesController : Controller
             return Challenge();
         }
 
-        // Obtener o registrar cliente asociado al usuario
-        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.UsuarioId == user.Id);
-        if (cliente == null)
-        {
-            cliente = new Cliente
-            {
-                UsuarioId = user.Id,
-                IngresosMensuales = 3000.00m,
-                Activo = true
-            };
-            _context.Clientes.Add(cliente);
-            await _context.SaveChangesAsync();
-        }
+        var cliente = await ObtenerOCrearClienteAsync(user.Id);
 
         // Validaciones Server-Side requeridas por Pregunta 2:
-        // 1. No aceptar montos negativos
         if (filter.MontoMin.HasValue && filter.MontoMin.Value < 0)
         {
             ModelState.AddModelError(nameof(filter.MontoMin), "El monto mínimo no puede ser un valor negativo.");
@@ -61,18 +48,15 @@ public class SolicitudesController : Controller
             ModelState.AddModelError(nameof(filter.MontoMax), "El monto máximo no puede ser menor al monto mínimo.");
         }
 
-        // 2. No aceptar rangos de fechas inválidos (fecha inicio mayor a fecha fin)
         if (filter.FechaInicio.HasValue && filter.FechaFin.HasValue && filter.FechaInicio.Value > filter.FechaFin.Value)
         {
             ModelState.AddModelError(nameof(filter.FechaInicio), "La fecha de inicio no puede ser posterior a la fecha de fin.");
         }
 
-        // Construir la consulta base (solo solicitudes del cliente autenticado)
         var query = _context.SolicitudesCredito
             .Include(s => s.Cliente)
             .Where(s => s.ClienteId == cliente.Id);
 
-        // Si las validaciones de servidor son válidas, aplicar los filtros
         if (ModelState.IsValid)
         {
             if (filter.Estado.HasValue)
@@ -121,6 +105,127 @@ public class SolicitudesController : Controller
         return View(filter);
     }
 
+    // GET: Solicitudes/Create (Formulario de registro)
+    public async Task<IActionResult> Create()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return Challenge();
+        }
+
+        var cliente = await ObtenerOCrearClienteAsync(user.Id);
+
+        var solicitudPendiente = await _context.SolicitudesCredito
+            .FirstOrDefaultAsync(s => s.ClienteId == cliente.Id && s.Estado == EstadoSolicitud.Pendiente);
+
+        var viewModel = new CrearSolicitudViewModel
+        {
+            IngresosMensuales = cliente.IngresosMensuales,
+            ClienteActivo = cliente.Activo,
+            TieneSolicitudPendiente = solicitudPendiente != null,
+            SolicitudPendienteExistenteId = solicitudPendiente?.Id
+        };
+
+        if (viewModel.TieneSolicitudPendiente)
+        {
+            ViewData["AlertaPendiente"] = $"Actualmente tienes la solicitud #{solicitudPendiente!.Id} en estado Pendiente. No es posible crear una nueva hasta que sea evaluada.";
+        }
+
+        if (!viewModel.ClienteActivo)
+        {
+            ViewData["AlertaInactivo"] = "Tu estado de cliente se encuentra inactivo. Por favor contacta al analista de créditos.";
+        }
+
+        return View(viewModel);
+    }
+
+    // POST: Solicitudes/Create (Registro y validaciones server-side)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(CrearSolicitudViewModel model)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            ModelState.AddModelError(string.Empty, "Debes estar autenticado para registrar una solicitud.");
+            return View(model);
+        }
+
+        var cliente = await ObtenerOCrearClienteAsync(user.Id);
+
+        // Cargar contexto del cliente en el modelo
+        model.IngresosMensuales = cliente.IngresosMensuales;
+        model.ClienteActivo = cliente.Activo;
+
+        // Validaciones Server-Side requeridas por Pregunta 3:
+        // 1. Cliente debe estar activo
+        if (!cliente.Activo)
+        {
+            ModelState.AddModelError(string.Empty, "Tu cuenta de cliente está inactiva. No tienes autorización para solicitar créditos.");
+        }
+
+        // 2. No permitir más de una solicitud Pendiente por cliente
+        var solicitudPendiente = await _context.SolicitudesCredito
+            .FirstOrDefaultAsync(s => s.ClienteId == cliente.Id && s.Estado == EstadoSolicitud.Pendiente);
+
+        if (solicitudPendiente != null)
+        {
+            model.TieneSolicitudPendiente = true;
+            model.SolicitudPendienteExistenteId = solicitudPendiente.Id;
+            ModelState.AddModelError(string.Empty, 
+                $"Ya tienes una solicitud pendiente de evaluación (#{solicitudPendiente.Id}). La política de negocio solo permite una solicitud activa por cliente.");
+        }
+
+        // 3. Monto solicitado mayor a 0
+        if (model.MontoSolicitado <= 0)
+        {
+            ModelState.AddModelError(nameof(model.MontoSolicitado), "El monto solicitado debe ser mayor a $0.");
+        }
+
+        // 4. El monto solicitado no puede superar 10 veces los ingresos mensuales
+        var limiteMaximo = cliente.IngresosMensuales * 10;
+        if (model.MontoSolicitado > limiteMaximo)
+        {
+            ModelState.AddModelError(nameof(model.MontoSolicitado), 
+                $"El monto solicitado (${model.MontoSolicitado:N2}) supera el límite máximo permitido de 10 veces tus ingresos mensuales (${limiteMaximo:N2}).");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            TempData["ErrorMessage"] = "No se pudo registrar la solicitud. Por favor revisa las validaciones indicadas.";
+            return View(model);
+        }
+
+        // Crear la Solicitud de Crédito en estado Pendiente
+        var nuevaSolicitud = new SolicitudCredito
+        {
+            ClienteId = cliente.Id,
+            MontoSolicitado = model.MontoSolicitado,
+            FechaSolicitud = DateTime.UtcNow,
+            Estado = EstadoSolicitud.Pendiente,
+            MotivoRechazo = null
+        };
+
+        _context.SolicitudesCredito.Add(nuevaSolicitud);
+        await _context.SaveChangesAsync();
+
+        // Actualizar sesión con la última solicitud visitada/creada (Pregunta 4)
+        HttpContext.Session.SetString("UltimaSolicitudId", nuevaSolicitud.Id.ToString());
+        HttpContext.Session.SetString("UltimaSolicitudMonto", nuevaSolicitud.MontoSolicitado.ToString("N0"));
+
+        // Feedback claro de éxito en la misma vista
+        model.RegistroExitoso = true;
+        model.SolicitudCreadaId = nuevaSolicitud.Id;
+        model.MontoCreado = nuevaSolicitud.MontoSolicitado;
+        model.TieneSolicitudPendiente = true;
+        model.SolicitudPendienteExistenteId = nuevaSolicitud.Id;
+
+        TempData["SuccessMessage"] = $"¡Solicitud #{nuevaSolicitud.Id} registrada exitosamente por ${nuevaSolicitud.MontoSolicitado:N2} en estado Pendiente!";
+
+        return View(model);
+    }
+
     // GET: Solicitudes/Details/5
     public async Task<IActionResult> Details(int? id)
     {
@@ -139,7 +244,6 @@ public class SolicitudesController : Controller
             return NotFound();
         }
 
-        // Seguridad: el usuario debe ser el dueño de la solicitud o tener rol Analista
         var user = await _userManager.GetUserAsync(User);
         var isAnalista = User.IsInRole("Analista");
 
@@ -148,10 +252,26 @@ public class SolicitudesController : Controller
             return Forbid();
         }
 
-        // Guardar última solicitud visitada en sesión (Requerimiento para Pregunta 4 con Redis)
         HttpContext.Session.SetString("UltimaSolicitudId", solicitud.Id.ToString());
         HttpContext.Session.SetString("UltimaSolicitudMonto", solicitud.MontoSolicitado.ToString("N0"));
 
         return View(solicitud);
+    }
+
+    private async Task<Cliente> ObtenerOCrearClienteAsync(string usuarioId)
+    {
+        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.UsuarioId == usuarioId);
+        if (cliente == null)
+        {
+            cliente = new Cliente
+            {
+                UsuarioId = usuarioId,
+                IngresosMensuales = 3500.00m,
+                Activo = true
+            };
+            _context.Clientes.Add(cliente);
+            await _context.SaveChangesAsync();
+        }
+        return cliente;
     }
 }
