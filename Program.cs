@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using creditos.Data;
+using creditos.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Configuración de Base de Datos SQLite
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
@@ -25,14 +26,33 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<ApplicationDbContext>();
 
-// Soporte de Caché y Sesión en memoria (se adaptará a Redis en Pregunta 4)
-builder.Services.AddDistributedMemoryCache();
+// Configuración de Caché y Sesión con Redis (Requerimiento Pregunta 4)
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"] 
+    ?? builder.Configuration.GetConnectionString("Redis");
+
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnectionString;
+        options.InstanceName = "Creditos_";
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
+
+// Sesión respaldada por la caché distribuida (Redis en producción o Render)
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
 });
+
+// Registro de servicios de dominio
+builder.Services.AddScoped<ISolicitudCacheService, SolicitudCacheService>();
 
 builder.Services.AddControllersWithViews();
 

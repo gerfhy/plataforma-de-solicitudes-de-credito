@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using creditos.Data;
 using creditos.Models;
+using creditos.Services;
 
 namespace creditos.Controllers;
 
@@ -12,14 +13,19 @@ public class SolicitudesController : Controller
 {
     private readonly ApplicationDbContext _context;
     private readonly UserManager<IdentityUser> _userManager;
+    private readonly ISolicitudCacheService _cacheService;
 
-    public SolicitudesController(ApplicationDbContext context, UserManager<IdentityUser> userManager)
+    public SolicitudesController(
+        ApplicationDbContext context, 
+        UserManager<IdentityUser> userManager,
+        ISolicitudCacheService cacheService)
     {
         _context = context;
         _userManager = userManager;
+        _cacheService = cacheService;
     }
 
-    // GET: Solicitudes (Mis Solicitudes con filtros)
+    // GET: Solicitudes (Mis Solicitudes con filtros y Caché Redis de 60s)
     public async Task<IActionResult> Index(CatalogoSolicitudesViewModel filter)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -53,9 +59,31 @@ public class SolicitudesController : Controller
             ModelState.AddModelError(nameof(filter.FechaInicio), "La fecha de inicio no puede ser posterior a la fecha de fin.");
         }
 
-        var query = _context.SolicitudesCredito
-            .Include(s => s.Cliente)
-            .Where(s => s.ClienteId == cliente.Id);
+        // --- MANEJO DE CACHÉ REDIS (60 SEGUNDOS) - PREGUNTA 4 ---
+        // Intentar obtener listado de solicitudes del usuario desde la caché
+        var solicitudesUsuario = await _cacheService.ObtenerSolicitudesCacheAsync(user.Id);
+        bool cacheHit = false;
+
+        if (solicitudesUsuario != null)
+        {
+            cacheHit = true;
+        }
+        else
+        {
+            // Consultar a SQLite y guardar en caché por 60s
+            solicitudesUsuario = await _context.SolicitudesCredito
+                .Include(s => s.Cliente)
+                .Where(s => s.ClienteId == cliente.Id)
+                .OrderByDescending(s => s.FechaSolicitud)
+                .ToListAsync();
+
+            await _cacheService.GuardarSolicitudesCacheAsync(user.Id, solicitudesUsuario);
+        }
+
+        ViewData["CachéHit"] = cacheHit;
+
+        // Aplicar filtros server-side sobre la colección
+        IEnumerable<SolicitudCredito> query = solicitudesUsuario;
 
         if (ModelState.IsValid)
         {
@@ -91,9 +119,7 @@ public class SolicitudesController : Controller
             TempData["ErrorMessage"] = "Se detectaron errores en los filtros de búsqueda.";
         }
 
-        filter.Solicitudes = await query
-            .OrderByDescending(s => s.FechaSolicitud)
-            .ToListAsync();
+        filter.Solicitudes = query.ToList();
 
         ViewData["KpiTotalCredito"] = $"${filter.MontoTotalAprobado:N0}";
         ViewData["KpiTotalBadge"] = $"${(filter.MontoTotalSolicitado / 1000):N1}k Solicitado";
@@ -140,7 +166,7 @@ public class SolicitudesController : Controller
         return View(viewModel);
     }
 
-    // POST: Solicitudes/Create (Registro y validaciones server-side)
+    // POST: Solicitudes/Create (Registro, validaciones y invalidación de caché)
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(CrearSolicitudViewModel model)
@@ -154,18 +180,15 @@ public class SolicitudesController : Controller
 
         var cliente = await ObtenerOCrearClienteAsync(user.Id);
 
-        // Cargar contexto del cliente en el modelo
         model.IngresosMensuales = cliente.IngresosMensuales;
         model.ClienteActivo = cliente.Activo;
 
-        // Validaciones Server-Side requeridas por Pregunta 3:
-        // 1. Cliente debe estar activo
+        // Validaciones Server-Side
         if (!cliente.Activo)
         {
             ModelState.AddModelError(string.Empty, "Tu cuenta de cliente está inactiva. No tienes autorización para solicitar créditos.");
         }
 
-        // 2. No permitir más de una solicitud Pendiente por cliente
         var solicitudPendiente = await _context.SolicitudesCredito
             .FirstOrDefaultAsync(s => s.ClienteId == cliente.Id && s.Estado == EstadoSolicitud.Pendiente);
 
@@ -177,13 +200,11 @@ public class SolicitudesController : Controller
                 $"Ya tienes una solicitud pendiente de evaluación (#{solicitudPendiente.Id}). La política de negocio solo permite una solicitud activa por cliente.");
         }
 
-        // 3. Monto solicitado mayor a 0
         if (model.MontoSolicitado <= 0)
         {
             ModelState.AddModelError(nameof(model.MontoSolicitado), "El monto solicitado debe ser mayor a $0.");
         }
 
-        // 4. El monto solicitado no puede superar 10 veces los ingresos mensuales
         var limiteMaximo = cliente.IngresosMensuales * 10;
         if (model.MontoSolicitado > limiteMaximo)
         {
@@ -197,7 +218,6 @@ public class SolicitudesController : Controller
             return View(model);
         }
 
-        // Crear la Solicitud de Crédito en estado Pendiente
         var nuevaSolicitud = new SolicitudCredito
         {
             ClienteId = cliente.Id,
@@ -210,11 +230,13 @@ public class SolicitudesController : Controller
         _context.SolicitudesCredito.Add(nuevaSolicitud);
         await _context.SaveChangesAsync();
 
-        // Actualizar sesión con la última solicitud visitada/creada (Pregunta 4)
+        // 1. Guardar última solicitud visitada/creada en Sesión respaldada por Redis
         HttpContext.Session.SetString("UltimaSolicitudId", nuevaSolicitud.Id.ToString());
         HttpContext.Session.SetString("UltimaSolicitudMonto", nuevaSolicitud.MontoSolicitado.ToString("N0"));
 
-        // Feedback claro de éxito en la misma vista
+        // 2. INVALIDACIÓN DE CACHÉ REDIS (Requerido: invalidar cuando se registre una nueva solicitud)
+        await _cacheService.InvalidarCacheUsuarioAsync(user.Id);
+
         model.RegistroExitoso = true;
         model.SolicitudCreadaId = nuevaSolicitud.Id;
         model.MontoCreado = nuevaSolicitud.MontoSolicitado;
@@ -252,6 +274,7 @@ public class SolicitudesController : Controller
             return Forbid();
         }
 
+        // Sesión con Redis: Guardar última solicitud visitada
         HttpContext.Session.SetString("UltimaSolicitudId", solicitud.Id.ToString());
         HttpContext.Session.SetString("UltimaSolicitudMonto", solicitud.MontoSolicitado.ToString("N0"));
 
