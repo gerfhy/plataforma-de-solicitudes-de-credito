@@ -95,7 +95,7 @@
             @if (Model.Solicitudes.Any())
             {
                 <div class="table-responsive mt-3">
-                    <table class="table-sleek">
+                    <table id="tabla-solicitudes-catalogo" class="table-sleek">
                         <thead>
                             <tr>
                                 <th># Solicitud</th>
@@ -109,7 +109,7 @@
                         <tbody>
                             @foreach (var item in Model.Solicitudes)
                             {
-                                <tr>
+                                <tr id="solicitud-row-@item.Id" data-solicitud-id="@item.Id">
                                     <td class="fw-bold text-dark">
                                         #@item.Id
                                     </td>
@@ -123,17 +123,17 @@
                                         @switch (item.Estado)
                                         {
                                             case creditos.Models.EstadoSolicitud.Aprobado:
-                                                <span class="status-pill aprobado">Aprobado</span>
+                                                <span id="status-badge-@item.Id" class="status-pill aprobado">Aprobado</span>
                                                 break;
                                             case creditos.Models.EstadoSolicitud.Rechazado:
-                                                <span class="status-pill rechazado">Rechazado</span>
+                                                <span id="status-badge-@item.Id" class="status-pill rechazado">Rechazado</span>
                                                 break;
                                             default:
-                                                <span class="status-pill pendiente">Pendiente</span>
+                                                <span id="status-badge-@item.Id" class="status-pill pendiente">Pendiente</span>
                                                 break;
                                         }
                                     </td>
-                                    <td>
+                                    <td id="motivo-span-@item.Id">
                                         @if (!string.IsNullOrEmpty(item.MotivoRechazo))
                                         {
                                             <span class="text-danger small"><i class="bi bi-info-circle me-1"></i>@item.MotivoRechazo</span>

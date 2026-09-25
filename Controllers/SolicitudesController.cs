@@ -14,15 +14,18 @@ public class SolicitudesController : Controller
     private readonly ApplicationDbContext _context;
     private readonly UserManager<IdentityUser> _userManager;
     private readonly ISolicitudCacheService _cacheService;
+    private readonly IPieSocketService _pieSocketService;
 
     public SolicitudesController(
         ApplicationDbContext context, 
         UserManager<IdentityUser> userManager,
-        ISolicitudCacheService cacheService)
+        ISolicitudCacheService cacheService,
+        IPieSocketService pieSocketService)
     {
         _context = context;
         _userManager = userManager;
         _cacheService = cacheService;
+        _pieSocketService = pieSocketService;
     }
 
     // GET: Solicitudes (Mis Solicitudes con filtros y Caché Redis de 60s)
@@ -279,6 +282,92 @@ public class SolicitudesController : Controller
         HttpContext.Session.SetString("UltimaSolicitudMonto", solicitud.MontoSolicitado.ToString("N0"));
 
         return View(solicitud);
+    }
+
+    // GET: /Solicitudes/EstadoActual/5 (Consulta de estado vigente para reconexión SignalR)
+    [HttpGet]
+    public async Task<IActionResult> EstadoActual(int id)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return Unauthorized();
+        }
+
+        var solicitud = await _context.SolicitudesCredito
+            .Include(s => s.Cliente)
+            .FirstOrDefaultAsync(s => s.Id == id);
+
+        if (solicitud == null)
+        {
+            return NotFound();
+        }
+
+        var isAnalista = User.IsInRole("Analista");
+        if (!isAnalista && solicitud.Cliente?.UsuarioId != user.Id)
+        {
+            return Forbid();
+        }
+
+        return Json(new
+        {
+            solicitudId = solicitud.Id,
+            estado = solicitud.Estado.ToString(),
+            motivoRechazo = solicitud.MotivoRechazo,
+            montoSolicitado = solicitud.MontoSolicitado
+        });
+    }
+
+    // GET: /Solicitudes/ResumenMisSolicitudes (Consulta de estados vigentes al reconectar en Mis Solicitudes)
+    [HttpGet]
+    public async Task<IActionResult> ResumenMisSolicitudes()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return Unauthorized();
+        }
+
+        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.UsuarioId == user.Id);
+        if (cliente == null)
+        {
+            return Json(Array.Empty<object>());
+        }
+
+        var solicitudes = await _context.SolicitudesCredito
+            .Where(s => s.ClienteId == cliente.Id)
+            .OrderByDescending(s => s.FechaSolicitud)
+            .Select(s => new
+            {
+                solicitudId = s.Id,
+                estado = s.Estado.ToString(),
+                motivoRechazo = s.MotivoRechazo,
+                montoSolicitado = s.MontoSolicitado
+            })
+            .ToListAsync();
+
+        return Json(solicitudes);
+    }
+
+    // GET: /Solicitudes/WebSocketConfig (Parámetros de conexión WebSocket con PieSocket e Identity)
+    [AllowAnonymous]
+    [HttpGet]
+    public async Task<IActionResult> WebSocketConfig()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return Unauthorized();
+        }
+
+        var canal = _pieSocketService.ObtenerCanalUsuario(user.Id);
+        return Json(new
+        {
+            clusterId = _pieSocketService.ClusterId,
+            apiKey = _pieSocketService.ApiKey,
+            canal = canal,
+            wsUrl = $"wss://{_pieSocketService.ClusterId}.piesocket.com/v3/{canal}?api_key={_pieSocketService.ApiKey}"
+        });
     }
 
     private async Task<Cliente> ObtenerOCrearClienteAsync(string usuarioId)

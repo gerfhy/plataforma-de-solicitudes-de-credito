@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using creditos.Data;
+using creditos.Hubs;
 using creditos.Services;
 using StackExchange.Redis;
 
@@ -76,6 +77,10 @@ builder.Services.AddSession(options =>
 
 // Registro de servicios de dominio
 builder.Services.AddScoped<ISolicitudCacheService, SolicitudCacheService>();
+builder.Services.AddHttpClient<IPieSocketService, PieSocketService>();
+
+// WebSocket Hub con SignalR / PieSocket (Requerimiento Pregunta 6)
+builder.Services.AddSignalR();
 
 builder.Services.AddControllersWithViews();
 
@@ -105,6 +110,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseSession();
+
+// Endpoint de WebSocket en /hubs/solicitudes protegido con Identity
+app.MapHub<SolicitudesHub>("/hubs/solicitudes");
 
 app.MapStaticAssets();
 
