@@ -173,4 +173,32 @@ Acceder en el navegador a `http://localhost:5176`.
 | **Pregunta 5** | `feature/panel-analista` | [PR #5](https://github.com/gerfhy/plataforma-de-solicitudes-de-credito/pull/5) | ✅ Mergeado a `main` |
 | **Pregunta 6** | `feature/websocket-notificaciones` | [PR #6](https://github.com/gerfhy/plataforma-de-solicitudes-de-credito/pull/6) | ✅ Mergeado a `main` |
 | **Pregunta 7** | `feature/cloudmq-notificaciones` | [PR #7](https://github.com/gerfhy/plataforma-de-solicitudes-de-credito/pull/7) | ✅ Mergeado a `main` |
-| **Pregunta 8** | `deploy/render` | [PR #8](https://github.com/gerfhy/plataforma-de-solicitudes-de-credito/pull/8) | 🚀 En Despliegue |
+| **Pregunta 8** | `deploy/render` | [PR #8](https://github.com/gerfhy/plataforma-de-solicitudes-de-credito/pull/8) | ✅ Mergeado a `main` |
+
+---
+
+## 📸 Evidencias de Pruebas y Validación
+
+### 1. Pregunta 6: Notificaciones en Tiempo Real con WebSockets (PieSocket)
+
+* **Aviso Reactivo en Tiempo Real en Cliente 1:** Al evaluar el analista una solicitud, el cliente recibe el evento instantáneamente mediante WebSocket (`wss://`) y se actualiza el estado y el toast sin recargar la página.
+  ![Cliente 1 - Notificación WebSocket](./docs/evidencias/evidencia_pregunta6_piesocket_cliente1.png)
+
+* **Aislamiento Estricto de Canales por Usuario:** Cliente 2 permanece en su estado original sin recibir notificaciones dirigidas exclusivamente a Cliente 1.
+  ![Cliente 2 - Canal Aislado](./docs/evidencias/evidencia_pregunta6_piesocket_cliente2.png)
+
+* **Panel de Evaluación del Analista:** El analista evalúa la solicitud aplicando las reglas de 5x ingresos y motivo obligatorio.
+  ![Panel Analista](./docs/evidencias/evidencia_pregunta6_analista_panel.png)
+
+---
+
+### 2. Pregunta 7: Mensajería Asíncrona con Cloud MQ (RabbitMQ en CloudAMQP)
+
+* **Retención de Mensaje en Cola Durable (Consumidor Desactivado):** Con `RabbitMq__ConsumerEnabled=false`, al registrarse la solicitud se publica el mensaje persistente con *Publisher Confirms*, reteniéndose en la cola de CloudAMQP (`Ready: 1`, `Consumers: 0`).
+  ![Cola Retenida en CloudAMQP](./docs/evidencias/evidencia_pregunta7_cola_pendiente.png)
+
+* **Consumo Asíncrono, Persistencia y Confirmación Manual `ACK`:** Al activar `RabbitMq__ConsumerEnabled=true`, el consumidor procesa el evento, almacena la notificación en SQLite y emite `BasicAck` manual vaciando la cola.
+  ![Consumo y ACK en Notificaciones](./docs/evidencias/evidencia_pregunta7_consumo_ack.png)
+
+* **Vista de Auditoría de Notificaciones para Rol Analista:** Los analistas tienen acceso a la vista integral de notificaciones para auditar eventos en el sistema.
+  ![Auditoría Analista](./docs/evidencias/evidencia_pregunta7_auditoria_analista.png)
