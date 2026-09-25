@@ -4,13 +4,13 @@
 
 @if (SignInManager.IsSignedIn(User))
 {
-    <div class="d-flex align-items-center gap-2">
-        <a class="user-avatar-btn" asp-area="Identity" asp-page="/Account/Manage/Index" title="@User.Identity?.Name">
+    <div class="nav-rail-user-profile">
+        <a class="user-avatar-btn" asp-area="Identity" asp-page="/Account/Manage/Index" title="Perfil: @User.Identity?.Name">
             <i class="bi bi-person-fill"></i>
             <span class="avatar-online-dot"></span>
         </a>
         <form class="d-inline m-0 p-0" asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Action("Index", "Home", new { area = "" })" method="post">
-            <button type="submit" class="btn-sleek-outline py-1 px-3" style="font-size: 0.8rem;" title="Cerrar sesión">
+            <button type="submit" class="nav-rail-item border-0 bg-transparent text-secondary" style="width: 44px; height: 44px;" title="Cerrar sesión">
                 <i class="bi bi-box-arrow-right"></i>
             </button>
         </form>
@@ -18,12 +18,12 @@
 }
 else
 {
-    <div class="d-flex align-items-center gap-2">
-        <a class="btn-sleek-outline py-1 px-3" style="font-size: 0.85rem;" asp-area="Identity" asp-page="/Account/Login">
-            <i class="bi bi-box-arrow-in-right me-1"></i> Iniciar Sesión
+    <div class="nav-rail-auth-stack">
+        <a class="nav-rail-item" asp-area="Identity" asp-page="/Account/Login" title="Iniciar Sesión">
+            <i class="bi bi-box-arrow-in-right"></i>
         </a>
-        <a class="btn-sleek-dark py-1 px-3" style="font-size: 0.85rem;" asp-area="Identity" asp-page="/Account/Register">
-            Registrarse
+        <a class="nav-rail-item" asp-area="Identity" asp-page="/Account/Register" title="Registrarse">
+            <i class="bi bi-person-plus-fill"></i>
         </a>
     </div>
 }
