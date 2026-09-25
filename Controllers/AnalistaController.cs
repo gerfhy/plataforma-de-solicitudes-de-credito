@@ -94,6 +94,21 @@ public class AnalistaController : Controller
         // 1. Guardar primero el estado en la base de datos
         solicitud.Estado = EstadoSolicitud.Aprobado;
         solicitud.MotivoRechazo = null;
+
+        // Registrar notificación persistente para el cliente
+        if (!string.IsNullOrEmpty(solicitud.Cliente?.UsuarioId))
+        {
+            var notificacionAprobado = new Notificacion
+            {
+                MessageId = Guid.NewGuid().ToString(),
+                SolicitudId = solicitud.Id,
+                UsuarioId = solicitud.Cliente.UsuarioId,
+                Texto = $"¡Felicitaciones! Tu solicitud de crédito #{solicitud.Id} ha sido aprobada por ${solicitud.MontoSolicitado:N2}.",
+                FechaProcesamientoUtc = DateTime.UtcNow
+            };
+            _context.Notificaciones.Add(notificacionAprobado);
+        }
+
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Solicitud #{SolicitudId} APROBADA exitosamente por Analista", solicitud.Id);
@@ -158,6 +173,21 @@ public class AnalistaController : Controller
         // 1. Guardar primero el estado en la base de datos
         solicitud.Estado = EstadoSolicitud.Rechazado;
         solicitud.MotivoRechazo = motivoRechazo.Trim();
+
+        // Registrar notificación persistente para el cliente con motivo de rechazo
+        if (!string.IsNullOrEmpty(solicitud.Cliente?.UsuarioId))
+        {
+            var notificacionRechazo = new Notificacion
+            {
+                MessageId = Guid.NewGuid().ToString(),
+                SolicitudId = solicitud.Id,
+                UsuarioId = solicitud.Cliente.UsuarioId,
+                Texto = $"Tu solicitud de crédito #{solicitud.Id} ha sido rechazada. Motivo: {solicitud.MotivoRechazo}",
+                FechaProcesamientoUtc = DateTime.UtcNow
+            };
+            _context.Notificaciones.Add(notificacionRechazo);
+        }
+
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Solicitud #{SolicitudId} RECHAZADA por Analista. Motivo: {Motivo}", solicitud.Id, solicitud.MotivoRechazo);
